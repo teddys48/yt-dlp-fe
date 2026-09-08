@@ -1,82 +1,35 @@
 # yt-dlp Web-Based Frontend (React + Vite + Bun)
 
-A production-ready, ultra-responsive frontend web application for the `yt-dlp` Go backend service. Built with **React 18**, **Vite**, **TypeScript**, **Bun**, and **Vanilla CSS Glassmorphism**.
+A production-ready, ultra-responsive frontend web application for the `yt-dlp` Go backend service supporting **Flexible Client IP Forwarding Options**, **Per-IP Download History**, **Media File Serving**, and **Header Engine Controls**.
 
 ---
 
 ## 🌟 Key Features
 
+- **Flexible Client IP Payload Options**:
+  - **JSON Body**: Sends `ip` & `client_ip` keys in `POST /api/v1/jobs` request body (`{ url, format, client_ip: "...", ip: "..." }`).
+  - **Query Parameters**: Appends `?client_ip=...&ip=...` to `POST /api/v1/jobs` and `GET /api/v1/my-downloads`.
+  - **Path Parameters**: Supports `GET /api/v1/my-downloads/:ip` and `GET /api/v1/downloads/ip/:ip` for querying per-IP download history.
+- **Client IP Auto-Detection & Manual Query**: Automatically detects client's public IP address with a manual IP search query field in the "IP History" tab.
+- **Media File Download Serving (`GET /api/v1/jobs/:id/file`)**: Serves completed media downloads with `Content-Disposition` matching original source video titles (e.g. `Rick Astley - Never Gonna Give You Up.mp4`).
+- **24-Hour File Cleanup Retention**: Seamlessly handles `cleaned` job status when 24h file retention background service cleans up expired media files on server disk.
 - **Modern Glassmorphic UI with Light & Dark Modes**: Premium theme switcher with smooth transitions, contrast optimization, and `localStorage` persistence.
-- **Fixed & Clean UI**: Resolved input field button collision, ensuring placeholder and input text never overlap with the inside Paste/Clear button.
-- **SEO Friendly & Optimized**: Includes OpenGraph tags, Twitter Cards, canonical links, and JSON-LD (`WebApplication` schema) structured data.
 - **Dynamic `.env` Best Practices**: Supports `.env`, `.env.development` (default API backend `http://localhost:8081`), and `.env.production`.
-- **Real-Time Progress Streaming (SSE)**: Live progress bar updates (0-100%), download speed (`3.2 MiB/s`), ETA countdown, and file status streamed via Server-Sent Events (`GET /api/v1/jobs/:id/progress`).
-- **Video Metadata Extraction**: Instant video preview card displaying thumbnail, title, channel uploader, duration (HH:MM:SS), and cached/extracted status badges (`POST /api/v1/metadata`).
-- **Multi-Format Selection**: Seamless options for downloading Best Quality (`best`), MP4 Video (`mp4`), Audio Only MP3 (`mp3`), or Video Only (`bestvideo`).
-- **Live Health Status Indicator**: Monitoring for API Gateway (port `8081`), PostgreSQL database, and Redis cache (`GET /health`).
-- **Bun & Dockerized**: Multi-stage `Dockerfile` using `oven/bun:alpine` and `nginx:alpine` configured for SPA fallback routing and unbuffered SSE proxying.
+- **Real-Time Progress Streaming (SSE)**: Live progress bar updates (0-100%) streamed via Server-Sent Events (`GET /api/v1/jobs/:id/progress`).
 
 ---
 
-## ⚙️ Environment Variables Setup (.env)
-
-The project includes pre-configured environment files:
-
-| File | Purpose | Default `VITE_API_BASE_URL` |
-| :--- | :--- | :--- |
-| `.env` | Default fallback config | `http://localhost:8081` |
-| `.env.development` | Local development config | `http://localhost:8081` |
-| `.env.production` | Production build config | relative (proxy via Nginx) |
-| `.env.example` | Example template for team devs | `http://localhost:8081` |
-
----
-
-## 🚀 Getting Started
-
-### Prerequisites
-
-- [Bun](https://bun.sh) (v1.0+)
-- `yt-dlp` Backend API running on port `8081` (`http://localhost:8081`)
-
-### Local Development
-
-1. Navigate to the project directory:
-```bash
-cd /home/teddy/code/yt-dlp-fe
-```
-
-2. Install dependencies:
-```bash
-bun install
-```
-
-3. Start the development server:
-```bash
-bun run dev
-```
-
-Open your browser at `http://localhost:3000`.
-
-### Production Build & Docker
-
-```bash
-# Build production bundle
-bun run build
-
-# Build and run Docker container
-docker build -t yt-dlp-fe .
-docker run -d -p 3000:80 --name yt-dlp-fe-container yt-dlp-fe
-```
-
----
-
-## 📡 Backend API Integration (Port 8081)
+## 📡 Backend API Integration Reference
 
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
 | `GET` | `/health` | Check PostgreSQL, Redis & API status |
+| `GET` | `/api/v1/yt-dlp/version` | Inspect current `yt-dlp` executable version |
+| `POST` | `/api/v1/yt-dlp/update` | Trigger `yt-dlp -U` self-updater |
 | `POST` | `/api/v1/metadata` | Extract video metadata (cached 24h) |
-| `POST` | `/api/v1/jobs` | Enqueue a download task in Redis queue |
+| `POST` | `/api/v1/jobs` | Enqueue job (accepts `ip`/`client_ip` in Body & Query Params) |
 | `GET` | `/api/v1/jobs/:id/progress` | **SSE Stream** for real-time progress events |
-| `GET` | `/api/v1/jobs/:id` | Check job status from PostgreSQL |
+| `GET` | `/api/v1/jobs/:id` | Check job status and output metadata |
+| `GET` | `/api/v1/jobs/:id/file` | **File Download Endpoint** (Original Title) |
+| `GET` | `/api/v1/my-downloads` | Query IP history via Query Params (`?client_ip=...`) or Path Params (`/:ip`) |
 | `POST` | `/api/v1/jobs/:id/cancel` | Send cancellation signal to active job |

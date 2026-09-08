@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   Download,
   AlertCircle,
@@ -6,12 +6,14 @@ import {
   Clock,
   XCircle,
   Zap,
-  HardDrive,
   Copy,
-  ExternalLink,
   Ban,
   Film,
   Music,
+  FileText,
+  Sparkles,
+  HardDrive,
+  Trash2,
 } from 'lucide-react';
 import { Job, SSEProgressData } from '../types';
 import { api } from '../services/api';
@@ -31,19 +33,48 @@ export const JobProgressCard: React.FC<JobProgressCardProps> = ({
 }) => {
   const [job, setJob] = useState<Job>(initialJob);
   const [cancelling, setCancelling] = useState<boolean>(false);
+  const autoDownloadedRef = useRef<boolean>(false);
 
-  // Sync internal job state when parent updates
   useEffect(() => {
     setJob(initialJob);
   }, [initialJob]);
 
+  /**
+   * Triggers file download directly via GET /api/v1/jobs/:id/file
+   * Backend serves Content-Disposition: attachment; filename="..."
+   */
+  const executeDownload = (jobId: string, fileName?: string) => {
+    try {
+      const fileUrl = api.getFileUrl(jobId);
+      const link = document.createElement('a');
+      link.href = fileUrl;
+      if (fileName) {
+        link.download = fileName;
+      }
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        if (document.body.contains(link)) {
+          document.body.removeChild(link);
+        }
+      }, 1000);
+    } catch (err) {
+      console.error('Download file trigger error:', err);
+    }
+  };
+
   // Subscribe to SSE stream for real-time progress updates if job is active
   useEffect(() => {
-    if (job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled') {
+    if (
+      job.status === 'completed' ||
+      job.status === 'failed' ||
+      job.status === 'cancelled' ||
+      job.status === 'cleaned'
+    ) {
       return;
     }
 
-    // Connect to backend Server-Sent Events stream: /api/v1/jobs/:id/progress
     const unsubscribe = api.subscribeJobProgress(
       job.id,
       (data: SSEProgressData) => {
@@ -52,6 +83,10 @@ export const JobProgressCard: React.FC<JobProgressCardProps> = ({
             ...prev,
             status: data.status || prev.status,
             progress: typeof data.progress === 'number' ? data.progress : prev.progress,
+            title: data.title || prev.title,
+            file_name: data.file_name || prev.file_name,
+            extension: data.extension || prev.extension,
+            file_size: data.file_size || prev.file_size,
             speed: data.speed || prev.speed,
             eta: data.eta || prev.eta,
             error: data.error || prev.error,
@@ -61,18 +96,29 @@ export const JobProgressCard: React.FC<JobProgressCardProps> = ({
         });
 
         if (data.status === 'completed') {
-          onToast(`Download completed for "${job.metadata?.title || job.id.slice(0, 8)}"`, 'success');
+          onToast(
+            `Download completed for "${data.file_name || data.title || job.id.slice(0, 8)}"`,
+            'success'
+          );
+
+          // Auto-download trigger when completed
+          if (!autoDownloadedRef.current) {
+            autoDownloadedRef.current = true;
+            executeDownload(job.id, data.file_name);
+            onToast('Download started automatically!', 'info');
+          }
         } else if (data.status === 'failed') {
-          onToast(`Download failed for "${job.metadata?.title || job.id.slice(0, 8)}"`, 'error');
+          onToast(
+            `Download failed for "${job.metadata?.title || job.id.slice(0, 8)}"`,
+            'error'
+          );
         }
       },
       () => {
-        // SSE error fallback: poll via REST API
         pollJobStatus();
       }
     );
 
-    // Also set up a lightweight polling timer every 4 seconds as a fallback
     const pollInterval = setInterval(() => {
       pollJobStatus();
     }, 4000);
@@ -90,11 +136,21 @@ export const JobProgressCard: React.FC<JobProgressCardProps> = ({
         setJob((prev) => {
           const merged = { ...prev, ...res.job };
           onUpdateJob(merged);
+
+          if (
+            merged.status === 'completed' &&
+            !autoDownloadedRef.current
+          ) {
+            autoDownloadedRef.current = true;
+            executeDownload(merged.id, merged.file_name);
+            onToast('Download started automatically!', 'info');
+          }
+
           return merged;
         });
       }
     } catch {
-      // Ignore polling errors
+      // Ignore
     }
   };
 
@@ -110,17 +166,25 @@ export const JobProgressCard: React.FC<JobProgressCardProps> = ({
         return updated;
       });
     } catch (err) {
-      onToast(`Failed to cancel job: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
+      onToast(
+        `Failed to cancel job: ${
+          err instanceof Error ? err.message : 'Unknown error'
+        }`,
+        'error'
+      );
     } finally {
       setCancelling(false);
     }
   };
 
-  const copyFilePath = () => {
-    if (job.file_path) {
-      navigator.clipboard.writeText(job.file_path);
-      onToast('File path copied to clipboard!', 'info');
-    }
+  const copyFileDownloadUrl = () => {
+    const downloadUrl = api.getFileUrl(job.id);
+    navigator.clipboard.writeText(downloadUrl);
+    onToast('File download endpoint URL copied to clipboard!', 'info');
+  };
+
+  const handleManualDownload = () => {
+    executeDownload(job.id, job.file_name);
   };
 
   const formatFileSize = (bytes?: number) => {
@@ -140,6 +204,8 @@ export const JobProgressCard: React.FC<JobProgressCardProps> = ({
         return <Zap size={16} color="var(--accent-cyan)" className="spinner" />;
       case 'cancelled':
         return <XCircle size={16} color="var(--status-cancelled)" />;
+      case 'cleaned':
+        return <Trash2 size={16} color="var(--text-dim)" />;
       case 'queued':
       default:
         return <Clock size={16} color="var(--status-queued)" />;
@@ -147,14 +213,16 @@ export const JobProgressCard: React.FC<JobProgressCardProps> = ({
   };
 
   const displayProgress = Math.min(100, Math.max(0, job.progress || 0));
+  const displayTitle = job.file_name || job.title || job.metadata?.title || job.url;
+  const displayThumbnail = job.metadata?.thumbnail;
 
   return (
     <div className="glass-panel job-card">
       <div className="job-header-row">
         <div className="job-title-group">
-          {job.metadata?.thumbnail ? (
+          {displayThumbnail ? (
             <img
-              src={job.metadata.thumbnail}
+              src={displayThumbnail}
               alt=""
               style={{
                 width: '52px',
@@ -165,7 +233,12 @@ export const JobProgressCard: React.FC<JobProgressCardProps> = ({
             />
           ) : (
             <div className="job-media-icon">
-              {job.format.includes('mp3') || job.format.includes('audio') ? (
+              {job.format.includes('mp3') ||
+              job.format.includes('audio') ||
+              job.extension === 'opus' ||
+              job.extension === 'mp3' ||
+              job.extension === 'm4a' ||
+              job.extension === 'flac' ? (
                 <Music size={20} />
               ) : (
                 <Film size={20} />
@@ -174,13 +247,45 @@ export const JobProgressCard: React.FC<JobProgressCardProps> = ({
           )}
 
           <div className="job-info">
-            <div className="job-url-title" title={job.metadata?.title || job.url}>
-              {job.metadata?.title || job.url}
+            <div
+              className="job-url-title"
+              title={job.file_name || displayTitle}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+            >
+              <span>{displayTitle}</span>
+              {job.extension && (
+                <span
+                  style={{
+                    fontSize: '0.65rem',
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    padding: '0.1rem 0.4rem',
+                    borderRadius: 'var(--radius-sm)',
+                    background: 'rgba(99, 102, 241, 0.15)',
+                    color: 'var(--accent-cyan)',
+                    border: '1px solid rgba(6, 182, 212, 0.3)',
+                    fontFamily: 'var(--font-mono)',
+                  }}
+                >
+                  .{job.extension}
+                </span>
+              )}
             </div>
             <div className="job-submeta">
-              <span>Format: <strong style={{ color: 'var(--text-main)' }}>{job.format}</strong></span>
+              <span>
+                Format:{' '}
+                <strong style={{ color: 'var(--text-main)' }}>{job.format}</strong>
+              </span>
               <span>•</span>
-              <span style={{ fontFamily: 'var(--font-mono)' }}>ID: {job.id.slice(0, 8)}</span>
+              <span style={{ fontFamily: 'var(--font-mono)' }}>
+                ID: {job.id.slice(0, 8)}
+              </span>
+              {job.client_ip && (
+                <>
+                  <span>•</span>
+                  <span>IP: {job.client_ip}</span>
+                </>
+              )}
               {job.created_at && (
                 <>
                   <span>•</span>
@@ -203,7 +308,11 @@ export const JobProgressCard: React.FC<JobProgressCardProps> = ({
               className="btn-secondary"
               onClick={handleCancel}
               disabled={cancelling}
-              style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem', color: 'var(--status-failed)' }}
+              style={{
+                padding: '0.35rem 0.65rem',
+                fontSize: '0.75rem',
+                color: 'var(--status-failed)',
+              }}
               title="Cancel Job"
             >
               <Ban size={14} />
@@ -211,25 +320,29 @@ export const JobProgressCard: React.FC<JobProgressCardProps> = ({
             </button>
           )}
 
-          {onRemoveJob && (job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled') && (
-            <button
-              onClick={() => onRemoveJob(job.id)}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: 'var(--text-dim)',
-                cursor: 'pointer',
-                padding: '4px',
-              }}
-              title="Remove from history"
-            >
-              <XCircle size={16} />
-            </button>
-          )}
+          {onRemoveJob &&
+            (job.status === 'completed' ||
+              job.status === 'failed' ||
+              job.status === 'cancelled' ||
+              job.status === 'cleaned') && (
+              <button
+                onClick={() => onRemoveJob(job.id)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-dim)',
+                  cursor: 'pointer',
+                  padding: '4px',
+                }}
+                title="Remove from history"
+              >
+                <XCircle size={16} />
+              </button>
+            )}
         </div>
       </div>
 
-      {/* Progress Bar & Live Stats Section */}
+      {/* Progress Bar & Streaming Stats */}
       <div className="progress-container">
         <div className="progress-info-row">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -238,20 +351,20 @@ export const JobProgressCard: React.FC<JobProgressCardProps> = ({
             </span>
             {job.status === 'processing' && (
               <span style={{ fontSize: '0.75rem', color: 'var(--accent-cyan)' }}>
-                • Streaming Progress
+                • Downloading & Converting Media
               </span>
             )}
           </div>
 
           <div className="progress-metrics">
             {job.speed && (
-              <div className="progress-metric-item" title="Download Speed">
+              <div className="progress-metric-item" title="Speed">
                 <Zap size={13} color="var(--accent-cyan)" />
                 <span>{job.speed}</span>
               </div>
             )}
             {job.eta && (
-              <div className="progress-metric-item" title="Estimated Time Remaining">
+              <div className="progress-metric-item" title="ETA">
                 <Clock size={13} color="var(--status-queued)" />
                 <span>ETA {job.eta}</span>
               </div>
@@ -274,7 +387,7 @@ export const JobProgressCard: React.FC<JobProgressCardProps> = ({
         </div>
       </div>
 
-      {/* Error Details Output */}
+      {/* Error Output */}
       {job.error && (
         <div
           style={{
@@ -294,46 +407,114 @@ export const JobProgressCard: React.FC<JobProgressCardProps> = ({
         </div>
       )}
 
-      {/* Completed File Details Footer */}
-      {job.status === 'completed' && (job.file_name || job.file_path) && (
+      {/* Cleaned Status Banner */}
+      {job.status === 'cleaned' && (
+        <div
+          style={{
+            background: 'rgba(107, 114, 128, 0.1)',
+            border: '1px solid rgba(107, 114, 128, 0.3)',
+            borderRadius: 'var(--radius-md)',
+            padding: '0.6rem 1rem',
+            fontSize: '0.825rem',
+            color: 'var(--text-muted)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+          }}
+        >
+          <Trash2 size={15} color="var(--text-dim)" />
+          <span>File auto-cleaned after 24 hours retention period.</span>
+        </div>
+      )}
+
+      {/* Completed File Serving Download Action Card */}
+      {job.status === 'completed' && (
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '0.75rem',
             background: 'rgba(16, 185, 129, 0.08)',
-            border: '1px solid rgba(16, 185, 129, 0.2)',
+            border: '1px solid rgba(16, 185, 129, 0.25)',
             borderRadius: 'var(--radius-md)',
-            padding: '0.6rem 1rem',
+            padding: '0.75rem 1rem',
             fontSize: '0.825rem',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', overflow: 'hidden' }}>
-            <Download size={15} color="var(--status-completed)" />
-            <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>File Saved:</span>
-            <span
-              style={{
-                fontFamily: 'var(--font-mono)',
-                color: 'var(--text-muted)',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}
-            >
-              {job.file_name || job.file_path}
-            </span>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.6rem',
+              overflow: 'hidden',
+              minWidth: 0,
+            }}
+          >
+            <FileText size={18} color="var(--status-completed)" />
+            <div style={{ minWidth: 0 }}>
+              <div
+                style={{
+                  fontWeight: 700,
+                  color: 'var(--text-main)',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+                title={job.file_name || displayTitle}
+              >
+                {job.file_name || displayTitle}
+              </div>
+              <div
+                style={{
+                  fontSize: '0.75rem',
+                  color: 'var(--text-muted)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                }}
+              >
+                <span>Ready for download</span>
+                {job.file_size && (
+                  <>
+                    <span>•</span>
+                    <span>{formatFileSize(job.file_size)}</span>
+                  </>
+                )}
+                <span>•</span>
+                <span style={{ color: 'var(--accent-cyan)' }}>
+                  <Sparkles size={12} style={{ display: 'inline', marginRight: '2px' }} />
+                  24h Retention
+                </span>
+              </div>
+            </div>
           </div>
 
-          {job.file_path && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <button
               className="btn-secondary"
-              onClick={copyFilePath}
-              style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem' }}
+              onClick={copyFileDownloadUrl}
+              style={{ fontSize: '0.775rem', padding: '0.45rem 0.8rem' }}
+              title="Copy backend download endpoint URL"
             >
-              <Copy size={13} />
-              <span>Copy Path</span>
+              <Copy size={14} />
+              <span>Copy Link</span>
             </button>
-          )}
+
+            <button
+              className="btn-primary"
+              onClick={handleManualDownload}
+              style={{
+                fontSize: '0.775rem',
+                padding: '0.45rem 0.95rem',
+              }}
+              title="Download file directly from backend server"
+            >
+              <Download size={14} />
+              <span>Download File</span>
+            </button>
+          </div>
         </div>
       )}
     </div>

@@ -1,9 +1,27 @@
-export type JobStatus = 'queued' | 'processing' | 'completed' | 'failed' | 'cancelled';
+export type JobStatus =
+  | 'queued'
+  | 'processing'
+  | 'completed'
+  | 'failed'
+  | 'cancelled'
+  | 'cleaned';
 
 export interface HealthResponse {
   postgres: string;
   redis: string;
   status: string;
+}
+
+export interface YtDlpVersionResponse {
+  current_version: string;
+}
+
+export interface YtDlpUpdateResponse {
+  status: string;
+  message: string;
+  previous_version?: string;
+  current_version: string;
+  updated: boolean;
 }
 
 export interface VideoMetadata {
@@ -23,13 +41,16 @@ export interface MetadataResponse {
 
 export interface Job {
   id: string;
+  client_ip?: string;
   url: string;
   format: string;
   status: JobStatus;
   progress: number;
-  file_path?: string;
+  title?: string;
   file_name?: string;
+  extension?: string;
   file_size?: number;
+  file_path?: string;
   speed?: string;
   eta?: string;
   error?: string;
@@ -42,10 +63,20 @@ export interface JobResponse {
   job: Job;
 }
 
+export interface MyDownloadsResponse {
+  client_ip: string;
+  total: number;
+  jobs: Job[];
+}
+
 export interface SSEProgressData {
   job_id: string;
   status: JobStatus;
   progress: number;
+  title?: string;
+  file_name?: string;
+  extension?: string;
+  file_size?: number;
   speed?: string;
   eta?: string;
   error?: string;

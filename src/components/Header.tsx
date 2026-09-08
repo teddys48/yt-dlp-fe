@@ -1,11 +1,28 @@
 import React, { useEffect, useState } from 'react';
-import { Download, Database, Server, RefreshCw, Sun, Moon } from 'lucide-react';
+import {
+  Download,
+  Database,
+  Server,
+  RefreshCw,
+  Sun,
+  Moon,
+  Terminal,
+  ArrowUpCircle,
+} from 'lucide-react';
 import { api } from '../services/api';
 import { HealthResponse } from '../types';
 
-export const Header: React.FC = () => {
+interface HeaderProps {
+  onToast?: (msg: string, type?: 'info' | 'success' | 'error') => void;
+}
+
+export const Header: React.FC<HeaderProps> = ({ onToast }) => {
   const [health, setHealth] = useState<HealthResponse | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loadingHealth, setLoadingHealth] = useState<boolean>(true);
+
+  // yt-dlp version management
+  const [version, setVersion] = useState<string | null>(null);
+  const [updatingYtDlp, setUpdatingYtDlp] = useState<boolean>(false);
 
   // Theme State (Dark / Light Mode)
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
@@ -23,7 +40,7 @@ export const Header: React.FC = () => {
     try {
       localStorage.setItem('yt_dlp_theme', theme);
     } catch {
-      // Ignore storage errors
+      // Ignore
     }
   }, [theme]);
 
@@ -32,20 +49,56 @@ export const Header: React.FC = () => {
   };
 
   const fetchHealth = async () => {
-    setLoading(true);
+    setLoadingHealth(true);
     try {
       const res = await api.checkHealth();
       setHealth(res);
     } catch {
       setHealth(null);
     } finally {
-      setLoading(false);
+      setLoadingHealth(false);
+    }
+  };
+
+  const fetchVersion = async () => {
+    try {
+      const res = await api.getYtDlpVersion();
+      setVersion(res.current_version);
+    } catch {
+      setVersion(null);
+    }
+  };
+
+  const handleUpdateYtDlp = async () => {
+    if (updatingYtDlp) return;
+    setUpdatingYtDlp(true);
+    try {
+      const res = await api.updateYtDlp();
+      setVersion(res.current_version);
+      if (onToast) {
+        onToast(
+          res.message || `yt-dlp updated to version v${res.current_version}`,
+          'success'
+        );
+      }
+    } catch (err) {
+      if (onToast) {
+        onToast(
+          `Failed to update yt-dlp: ${
+            err instanceof Error ? err.message : 'Unknown error'
+          }`,
+          'error'
+        );
+      }
+    } finally {
+      setUpdatingYtDlp(false);
     }
   };
 
   useEffect(() => {
     fetchHealth();
-    // Poll health status every 30 seconds
+    fetchVersion();
+
     const interval = setInterval(fetchHealth, 30000);
     return () => clearInterval(interval);
   }, []);
@@ -62,26 +115,64 @@ export const Header: React.FC = () => {
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <span className="brand-title">YT-DLP Engine</span>
-              <span className="brand-badge">PRO v1.0</span>
+              <span className="brand-badge">PRO v2.0</span>
             </div>
           </div>
         </a>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', flexWrap: 'wrap' }}>
+          {/* yt-dlp Version Badge & Quick Update Button */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+              padding: '0.35rem 0.65rem',
+              borderRadius: 'var(--radius-full)',
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-color)',
+              fontSize: '0.775rem',
+              fontFamily: 'var(--font-mono)',
+            }}
+          >
+            <Terminal size={14} color="var(--accent-purple)" />
+            <span>yt-dlp {version ? `v${version}` : 'checking...'}</span>
+            <button
+              onClick={handleUpdateYtDlp}
+              disabled={updatingYtDlp}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--accent-cyan)',
+                cursor: 'pointer',
+                padding: '2px',
+                display: 'flex',
+                alignItems: 'center',
+              }}
+              title="Update yt-dlp executable on backend (yt-dlp -U)"
+            >
+              {updatingYtDlp ? (
+                <RefreshCw size={14} className="spinner" />
+              ) : (
+                <ArrowUpCircle size={14} />
+              )}
+            </button>
+          </div>
+
           {/* Backend Health Status Badge */}
           <div className="health-badge">
             <div
               className={`health-dot ${
-                loading ? 'loading' : isHealthy ? 'ok' : 'error'
+                loadingHealth ? 'loading' : isHealthy ? 'ok' : 'error'
               }`}
             />
             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              API System:
+              API:
             </span>
-            {loading ? (
+            {loadingHealth ? (
               <span style={{ color: 'var(--text-muted)' }}>Checking...</span>
             ) : isHealthy ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <span style={{ color: 'var(--status-completed)', fontWeight: 700 }}>
                   ONLINE
                 </span>
@@ -136,13 +227,13 @@ export const Header: React.FC = () => {
                   }}
                   title="Retry connection"
                 >
-                  <RefreshCw size={14} className={loading ? 'spinner' : ''} />
+                  <RefreshCw size={14} className={loadingHealth ? 'spinner' : ''} />
                 </button>
               </div>
             )}
           </div>
 
-          {/* Light / Dark Mode Toggle Button */}
+          {/* Theme Toggle Button */}
           <button
             className="theme-toggle-btn"
             onClick={toggleTheme}
