@@ -31,6 +31,8 @@ export interface VideoMetadata {
   uploader: string;
   thumbnail: string;
   url: string;
+  filesize?: number;
+  filesize_approx?: number;
   description?: string;
 }
 
@@ -92,4 +94,5 @@ export interface DownloadFormatOption {
   category: 'video' | 'audio' | 'best';
   badge: 'Video' | 'Audio' | 'Best' | 'Lossless';
   icon: 'video' | 'audio' | 'sparkles' | 'film' | 'disc' | 'headphones';
+  bitrateKbps: number; // Approximate total bitrate in kbps for size calculation
 }

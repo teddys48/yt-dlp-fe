@@ -10,8 +10,9 @@ import {
   Disc,
   Headphones,
   Sliders,
-  CheckCircle2,
-  Tv,
+  HardDrive,
+  Play,
+  Check,
 } from 'lucide-react';
 import { VideoMetadata, DownloadFormatOption, FormatCategory } from '../types';
 
@@ -27,19 +28,21 @@ const ALL_FORMAT_OPTIONS: DownloadFormatOption[] = [
   {
     id: 'best',
     label: 'Best Quality',
-    description: 'Auto-select highest quality video & audio',
+    description: 'Auto-select highest video & audio streams',
     category: 'best',
     badge: 'Best',
     icon: 'sparkles',
+    bitrateKbps: 6000,
   },
   // --- VIDEO FORMATS ---
   {
     id: 'mp4',
     label: 'MP4 Video',
-    description: 'Universal MP4 format (H.264 / AAC)',
+    description: 'Universal MP4 container (H.264 / AAC)',
     category: 'video',
     badge: 'Video',
     icon: 'video',
+    bitrateKbps: 3500,
   },
   {
     id: 'webm',
@@ -48,6 +51,7 @@ const ALL_FORMAT_OPTIONS: DownloadFormatOption[] = [
     category: 'video',
     badge: 'Video',
     icon: 'film',
+    bitrateKbps: 3000,
   },
   {
     id: '1080p',
@@ -56,6 +60,7 @@ const ALL_FORMAT_OPTIONS: DownloadFormatOption[] = [
     category: 'video',
     badge: 'Video',
     icon: 'video',
+    bitrateKbps: 5500,
   },
   {
     id: '720p',
@@ -64,6 +69,7 @@ const ALL_FORMAT_OPTIONS: DownloadFormatOption[] = [
     category: 'video',
     badge: 'Video',
     icon: 'video',
+    bitrateKbps: 2800,
   },
   {
     id: '480p',
@@ -72,6 +78,7 @@ const ALL_FORMAT_OPTIONS: DownloadFormatOption[] = [
     category: 'video',
     badge: 'Video',
     icon: 'video',
+    bitrateKbps: 1200,
   },
   {
     id: '360p',
@@ -80,6 +87,7 @@ const ALL_FORMAT_OPTIONS: DownloadFormatOption[] = [
     category: 'video',
     badge: 'Video',
     icon: 'video',
+    bitrateKbps: 600,
   },
   {
     id: 'bestvideo',
@@ -88,6 +96,7 @@ const ALL_FORMAT_OPTIONS: DownloadFormatOption[] = [
     category: 'video',
     badge: 'Video',
     icon: 'film',
+    bitrateKbps: 5000,
   },
   // --- AUDIO FORMATS ---
   {
@@ -97,6 +106,7 @@ const ALL_FORMAT_OPTIONS: DownloadFormatOption[] = [
     category: 'audio',
     badge: 'Audio',
     icon: 'audio',
+    bitrateKbps: 320,
   },
   {
     id: 'm4a',
@@ -105,6 +115,7 @@ const ALL_FORMAT_OPTIONS: DownloadFormatOption[] = [
     category: 'audio',
     badge: 'Audio',
     icon: 'headphones',
+    bitrateKbps: 192,
   },
   {
     id: 'opus',
@@ -113,6 +124,7 @@ const ALL_FORMAT_OPTIONS: DownloadFormatOption[] = [
     category: 'audio',
     badge: 'Audio',
     icon: 'disc',
+    bitrateKbps: 160,
   },
   {
     id: 'flac',
@@ -121,6 +133,7 @@ const ALL_FORMAT_OPTIONS: DownloadFormatOption[] = [
     category: 'audio',
     badge: 'Lossless',
     icon: 'disc',
+    bitrateKbps: 1411,
   },
   {
     id: 'wav',
@@ -129,6 +142,7 @@ const ALL_FORMAT_OPTIONS: DownloadFormatOption[] = [
     category: 'audio',
     badge: 'Lossless',
     icon: 'headphones',
+    bitrateKbps: 1411,
   },
   {
     id: 'bestaudio',
@@ -137,6 +151,7 @@ const ALL_FORMAT_OPTIONS: DownloadFormatOption[] = [
     category: 'audio',
     badge: 'Audio',
     icon: 'audio',
+    bitrateKbps: 256,
   },
 ];
 
@@ -162,6 +177,30 @@ export const MetadataCard: React.FC<MetadataCardProps> = ({
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  /**
+   * Calculates formatted estimated file size based on video duration & format bitrate
+   */
+  const getEstimatedFileSize = (bitrateKbps: number): string => {
+    if (metadata.filesize && metadata.filesize > 0) {
+      const mb = metadata.filesize / (1024 * 1024);
+      return mb >= 1000 ? `${(mb / 1024).toFixed(2)} GB` : `${mb.toFixed(1)} MB`;
+    }
+
+    const duration = metadata.duration || 0;
+    if (duration <= 0) return 'Est. variable';
+
+    const sizeInMB = (duration * bitrateKbps * 1000) / (8 * 1024 * 1024);
+
+    if (sizeInMB < 1) {
+      const kb = sizeInMB * 1024;
+      return `~${Math.round(kb)} KB`;
+    }
+    if (sizeInMB >= 1000) {
+      return `~${(sizeInMB / 1024).toFixed(2)} GB`;
+    }
+    return `~${sizeInMB.toFixed(1)} MB`;
+  };
+
   const handleStartDownload = () => {
     const finalFormat =
       activeCategory === 'custom' && customFormatInput.trim()
@@ -177,10 +216,13 @@ export const MetadataCard: React.FC<MetadataCardProps> = ({
     return true;
   });
 
+  const selectedOpt = ALL_FORMAT_OPTIONS.find((opt) => opt.id === selectedFormat);
+
   return (
     <div className="glass-panel metadata-card">
+      {/* Upper Content: Widescreen Thumbnail & Title Metadata Details */}
       <div className="meta-content">
-        {/* Thumbnail Preview */}
+        {/* Widescreen Thumbnail Preview Container */}
         <div className="thumb-container">
           <img
             src={
@@ -194,13 +236,18 @@ export const MetadataCard: React.FC<MetadataCardProps> = ({
                 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?q=80&w=600';
             }}
           />
+          <div className="thumb-play-overlay">
+            <div className="play-icon-circle">
+              <Play size={22} fill="currentColor" style={{ marginLeft: '2px' }} />
+            </div>
+          </div>
           <div className="duration-badge">
             <Clock size={12} style={{ display: 'inline', marginRight: '4px' }} />
             {formatDuration(metadata.duration)}
           </div>
         </div>
 
-        {/* Video Info Details */}
+        {/* Video Metadata Info */}
         <div className="meta-details">
           <div>
             <div
@@ -208,7 +255,7 @@ export const MetadataCard: React.FC<MetadataCardProps> = ({
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.5rem',
-                marginBottom: '0.4rem',
+                marginBottom: '0.5rem',
               }}
             >
               <span
@@ -216,7 +263,7 @@ export const MetadataCard: React.FC<MetadataCardProps> = ({
                   fontSize: '0.7rem',
                   fontWeight: 700,
                   textTransform: 'uppercase',
-                  padding: '0.15rem 0.5rem',
+                  padding: '0.2rem 0.6rem',
                   borderRadius: '9999px',
                   background:
                     source === 'cache'
@@ -241,7 +288,9 @@ export const MetadataCard: React.FC<MetadataCardProps> = ({
           <div className="meta-info-row">
             <div className="info-item">
               <User size={15} color="var(--accent-primary)" />
-              <span>{metadata.uploader || 'Unknown Channel'}</span>
+              <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>
+                {metadata.uploader || 'Unknown Channel'}
+              </span>
             </div>
             <div className="info-item">
               <Clock size={15} color="var(--accent-cyan)" />
@@ -251,7 +300,7 @@ export const MetadataCard: React.FC<MetadataCardProps> = ({
               href={metadata.url}
               target="_blank"
               rel="noreferrer"
-              className="info-item"
+              className="info-item link-item"
               style={{ color: 'var(--text-muted)', textDecoration: 'none' }}
             >
               <ExternalLink size={14} />
@@ -263,16 +312,8 @@ export const MetadataCard: React.FC<MetadataCardProps> = ({
 
       {/* Format Category Selector Tabs */}
       <div className="format-selection">
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: '0.5rem',
-          }}
-        >
-          <div className="format-label">Select Download Format</div>
+        <div className="format-selection-header">
+          <div className="format-label">Select Download Format & Resolution</div>
 
           {/* Category Filter Pills */}
           <div className="filter-tabs" style={{ background: 'var(--bg-card-hover)' }}>
@@ -280,7 +321,7 @@ export const MetadataCard: React.FC<MetadataCardProps> = ({
               className={`tab-btn ${activeCategory === 'all' ? 'active' : ''}`}
               onClick={() => setActiveCategory('all')}
             >
-              <span>All Formats ({ALL_FORMAT_OPTIONS.length})</span>
+              <span>All ({ALL_FORMAT_OPTIONS.length})</span>
             </button>
             <button
               className={`tab-btn ${activeCategory === 'video' ? 'active' : ''}`}
@@ -308,17 +349,7 @@ export const MetadataCard: React.FC<MetadataCardProps> = ({
 
         {/* Format Options Grid OR Custom Input */}
         {activeCategory === 'custom' ? (
-          <div
-            style={{
-              padding: '1rem',
-              borderRadius: 'var(--radius-md)',
-              background: 'var(--bg-card)',
-              border: '1px solid var(--border-color)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '0.75rem',
-            }}
-          >
+          <div className="custom-format-box">
             <label
               style={{
                 fontSize: '0.85rem',
@@ -344,6 +375,8 @@ export const MetadataCard: React.FC<MetadataCardProps> = ({
           <div className="format-grid">
             {filteredOptions.map((opt) => {
               const isActive = selectedFormat === opt.id && activeCategory !== 'custom';
+              const estSize = getEstimatedFileSize(opt.bitrateKbps);
+
               return (
                 <div
                   key={opt.id}
@@ -351,26 +384,59 @@ export const MetadataCard: React.FC<MetadataCardProps> = ({
                   onClick={() => setSelectedFormat(opt.id)}
                 >
                   <div className="format-opt-info">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
                       {opt.icon === 'sparkles' && (
-                        <Sparkles size={15} color="var(--accent-purple)" />
+                        <Sparkles size={16} color="var(--accent-purple)" />
                       )}
-                      {opt.icon === 'video' && <Film size={15} color="var(--accent-cyan)" />}
+                      {opt.icon === 'video' && <Film size={16} color="var(--accent-cyan)" />}
                       {opt.icon === 'audio' && (
-                        <Music size={15} color="var(--status-completed)" />
+                        <Music size={16} color="var(--status-completed)" />
                       )}
                       {opt.icon === 'film' && (
-                        <Film size={15} color="var(--accent-primary)" />
+                        <Film size={16} color="var(--accent-primary)" />
                       )}
-                      {opt.icon === 'disc' && <Disc size={15} color="var(--accent-pink)" />}
+                      {opt.icon === 'disc' && <Disc size={16} color="var(--accent-pink)" />}
                       {opt.icon === 'headphones' && (
-                        <Headphones size={15} color="var(--accent-cyan)" />
+                        <Headphones size={16} color="var(--accent-cyan)" />
                       )}
                       <span className="format-opt-title">{opt.label}</span>
                     </div>
                     <span className="format-opt-desc">{opt.description}</span>
                   </div>
-                  <span className={`format-badge ${opt.badge}`}>{opt.badge}</span>
+
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'flex-end',
+                      gap: '0.35rem',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                      {isActive && <Check size={13} color="var(--accent-primary)" />}
+                      <span className={`format-badge ${opt.badge}`}>{opt.badge}</span>
+                    </div>
+                    <span
+                      style={{
+                        fontSize: '0.7rem',
+                        fontWeight: 700,
+                        fontFamily: 'var(--font-mono)',
+                        padding: '0.125rem 0.45rem',
+                        borderRadius: 'var(--radius-sm)',
+                        background: 'rgba(99, 102, 241, 0.12)',
+                        color: 'var(--text-main)',
+                        border: '1px solid var(--border-color)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.25rem',
+                        whiteSpace: 'nowrap',
+                      }}
+                      title="Estimated download file size"
+                    >
+                      <HardDrive size={10} color="var(--accent-cyan)" />
+                      <span>{estSize}</span>
+                    </span>
+                  </div>
                 </div>
               );
             })}
@@ -378,13 +444,34 @@ export const MetadataCard: React.FC<MetadataCardProps> = ({
         )}
       </div>
 
-      {/* Action Footer */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+      {/* Action Footer Bar */}
+      <div className="meta-footer-bar">
+        <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>
+          Selected:{' '}
+          <strong style={{ color: 'var(--text-main)', fontWeight: 700 }}>
+            {activeCategory === 'custom'
+              ? customFormatInput.trim() || 'custom'
+              : selectedOpt?.label || selectedFormat}
+          </strong>{' '}
+          {selectedOpt && (
+            <span
+              style={{
+                fontFamily: 'var(--font-mono)',
+                color: 'var(--accent-cyan)',
+                marginLeft: '0.4rem',
+                fontWeight: 600,
+              }}
+            >
+              ({getEstimatedFileSize(selectedOpt.bitrateKbps)})
+            </span>
+          )}
+        </div>
+
         <button
           className="btn-primary"
           onClick={handleStartDownload}
           disabled={enqueueing}
-          style={{ width: '100%', maxWidth: '340px' }}
+          style={{ width: '100%', maxWidth: '320px' }}
         >
           {enqueueing ? (
             <span>Enqueueing Download...</span>

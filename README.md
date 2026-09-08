@@ -1,11 +1,14 @@
 # yt-dlp Web-Based Frontend (React + Vite + Bun)
 
-A production-ready, ultra-responsive frontend web application for the `yt-dlp` Go backend service supporting **Flexible Client IP Forwarding Options**, **Per-IP Download History**, **Media File Serving**, and **Header Engine Controls**.
+A production-ready, ultra-responsive frontend web application for the `yt-dlp` Go backend service supporting **Ultra-Fluid Mobile Responsiveness**, **Desktop Widescreen Metadata Card Polish**, **Estimated File Size Badges**, **Flexible Client IP Forwarding Options**, **Per-IP Download History**, and **Media File Serving**.
 
 ---
 
 ## 🌟 Key Features
 
+- **Mobile View Header & Footer Full-Width Fix**: Resolved horizontal overflow / cut-off issue on narrow mobile devices (320px–640px). Header controls auto-compact while title text truncates cleanly, ensuring 100% full-width layout without any side overflow.
+- **Desktop Widescreen Metadata Card**: Refined layout on desktop screens with 340px widescreen video preview thumbnail, interactive play overlay, 3-column format selection grid, active glow rings, and responsive action bar.
+- **Estimated File Size Badges in Format Selector**: Format selection cards calculate and display estimated file size badges (e.g. `~14.2 MB`, `~3.8 MB`, `~125.6 MB`) for each video & audio option based on media duration and stream bitrates.
 - **Flexible Client IP Payload Options**:
   - **JSON Body**: Sends `ip` & `client_ip` keys in `POST /api/v1/jobs` request body (`{ url, format, client_ip: "...", ip: "..." }`).
   - **Query Parameters**: Appends `?client_ip=...&ip=...` to `POST /api/v1/jobs` and `GET /api/v1/my-downloads`.

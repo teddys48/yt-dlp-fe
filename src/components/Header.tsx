@@ -37,6 +37,9 @@ export const Header: React.FC<HeaderProps> = ({ onToast }) => {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('resize'));
+    }
     try {
       localStorage.setItem('yt_dlp_theme', theme);
     } catch {
@@ -110,51 +113,29 @@ export const Header: React.FC<HeaderProps> = ({ onToast }) => {
       <div className="header-container">
         <a href="#" className="brand-logo">
           <div className="brand-icon">
-            <Download size={22} />
+            <Download size={20} />
           </div>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <span className="brand-title">YT-DLP Engine</span>
-              <span className="brand-badge">PRO v2.0</span>
-            </div>
+          <div className="brand-text-container">
+            <span className="brand-title">YT-DLP Engine</span>
+            <span className="brand-badge">PRO</span>
           </div>
         </a>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', flexWrap: 'wrap' }}>
+        <div className="header-controls">
           {/* yt-dlp Version Badge & Quick Update Button */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.4rem',
-              padding: '0.35rem 0.65rem',
-              borderRadius: 'var(--radius-full)',
-              background: 'var(--bg-card)',
-              border: '1px solid var(--border-color)',
-              fontSize: '0.775rem',
-              fontFamily: 'var(--font-mono)',
-            }}
-          >
-            <Terminal size={14} color="var(--accent-purple)" />
-            <span>yt-dlp {version ? `v${version}` : 'checking...'}</span>
+          <div className="version-pill-badge">
+            <Terminal size={13} color="var(--accent-purple)" />
+            <span className="version-text">{version ? `v${version}` : 'v...'}</span>
             <button
               onClick={handleUpdateYtDlp}
               disabled={updatingYtDlp}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: 'var(--accent-cyan)',
-                cursor: 'pointer',
-                padding: '2px',
-                display: 'flex',
-                alignItems: 'center',
-              }}
+              className="version-update-btn"
               title="Update yt-dlp executable on backend (yt-dlp -U)"
             >
               {updatingYtDlp ? (
-                <RefreshCw size={14} className="spinner" />
+                <RefreshCw size={13} className="spinner" />
               ) : (
-                <ArrowUpCircle size={14} />
+                <ArrowUpCircle size={13} />
               )}
             </button>
           </div>
@@ -166,55 +147,30 @@ export const Header: React.FC<HeaderProps> = ({ onToast }) => {
                 loadingHealth ? 'loading' : isHealthy ? 'ok' : 'error'
               }`}
             />
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              API:
-            </span>
+            <span className="health-label">API:</span>
             {loadingHealth ? (
-              <span style={{ color: 'var(--text-muted)' }}>Checking...</span>
+              <span style={{ color: 'var(--text-muted)' }}>...</span>
             ) : isHealthy ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ color: 'var(--status-completed)', fontWeight: 700 }}>
-                  ONLINE
-                </span>
-                <span style={{ color: 'var(--border-color)' }}>|</span>
-                <span
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.2rem',
-                    color: 'var(--text-muted)',
-                    fontSize: '0.75rem',
-                  }}
-                  title={`PostgreSQL: ${health?.postgres}`}
-                >
+              <div className="health-details">
+                <span className="health-status-ok">ONLINE</span>
+                <span className="health-sub-item" title={`PostgreSQL: ${health?.postgres}`}>
                   <Database
-                    size={12}
+                    size={11}
                     color={health?.postgres === 'connected' ? '#10b981' : '#ef4444'}
                   />{' '}
-                  PG
+                  <span className="hide-on-mobile">PG</span>
                 </span>
-                <span
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.2rem',
-                    color: 'var(--text-muted)',
-                    fontSize: '0.75rem',
-                  }}
-                  title={`Redis: ${health?.redis}`}
-                >
+                <span className="health-sub-item" title={`Redis: ${health?.redis}`}>
                   <Server
-                    size={12}
+                    size={11}
                     color={health?.redis === 'connected' ? '#10b981' : '#ef4444'}
                   />{' '}
-                  Redis
+                  <span className="hide-on-mobile">Redis</span>
                 </span>
               </div>
             ) : (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <span style={{ color: 'var(--status-failed)', fontWeight: 700 }}>
-                  OFFLINE
-                </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                <span className="health-status-err">OFF</span>
                 <button
                   onClick={fetchHealth}
                   style={{
@@ -227,7 +183,7 @@ export const Header: React.FC<HeaderProps> = ({ onToast }) => {
                   }}
                   title="Retry connection"
                 >
-                  <RefreshCw size={14} className={loadingHealth ? 'spinner' : ''} />
+                  <RefreshCw size={13} className={loadingHealth ? 'spinner' : ''} />
                 </button>
               </div>
             )}
@@ -241,9 +197,9 @@ export const Header: React.FC<HeaderProps> = ({ onToast }) => {
             aria-label="Toggle Theme"
           >
             {theme === 'dark' ? (
-              <Sun size={18} color="var(--status-queued)" />
+              <Sun size={17} color="var(--status-queued)" />
             ) : (
-              <Moon size={18} color="var(--accent-primary)" />
+              <Moon size={17} color="var(--accent-primary)" />
             )}
           </button>
         </div>
